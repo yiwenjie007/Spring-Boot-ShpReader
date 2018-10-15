@@ -23,6 +23,7 @@ import org.geotools.data.FeatureWriter;
 import org.geotools.data.FileDataStore;
 import org.geotools.data.FileDataStoreFinder;
 import org.geotools.data.Transaction;
+import org.geotools.data.mysql.MySQLJNDIDataStoreFactory;
 import org.geotools.data.postgis.PostgisNGDataStoreFactory;
 import org.geotools.data.shapefile.ShapefileDataStore;
 import org.geotools.data.shapefile.ShapefileDataStoreFactory;
@@ -89,6 +90,30 @@ public class GeoToolsUtils {
 	}
 
 	/**
+	 * 1.连接mysql数据库
+	 *
+	 * @param ip
+	 * @param port
+	 * @param user
+	 * @param password
+	 * @param database
+	 * @return
+	 * @throws Exception
+	 */
+	private static boolean connDataBaseMySql(String ip, Integer port, String user, String password, String database)
+			throws Exception {
+		// 拼接url
+		String url = "jdbc:mysql://" + ip + ":" + port + "/" + database;
+		Class.forName("com.mysql.jdbc.Driver"); // 一定要注意和上面的MySQL语法不同
+		connection = DriverManager.getConnection(url, user, password);
+		if (connection != null) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	/**
 	 * 2.连接数据库 使用的postgis 链接代码如下：
 	 * 
 	 * @param dbtype
@@ -110,6 +135,42 @@ public class GeoToolsUtils {
 		params.put(PostgisNGDataStoreFactory.SCHEMA.key, "public");
 		params.put(PostgisNGDataStoreFactory.USER.key, userName);
 		params.put(PostgisNGDataStoreFactory.PASSWD.key, password);
+		try {
+			pgDatastore = DataStoreFinder.getDataStore(params);
+			if (pgDatastore != null) {
+				System.out.println("系统连接到位于：" + host + "的空间数据库" + database + "成功！");
+			} else {
+				System.out.println("系统连接到位于：" + host + "的空间数据库" + database + "失败！请检查相关参数");
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+			System.out.println("系统连接到位于：" + host + "的空间数据库" + database + "失败！请检查相关参数");
+		}
+
+	}
+
+	/**
+	 * 2.连接数据库 使用的mysql 链接代码如下：
+	 *
+	 * @param dbtype
+	 * @param host
+	 * @param port
+	 * @param database
+	 * @param userName
+	 * @param password
+	 */
+	private static void connMySql(String dbtype, String host, int port, String database, String userName,
+									String password) {
+
+		Map<String, Object> params = new HashMap<String, Object>();
+
+		params.put(MySQLJNDIDataStoreFactory.DBTYPE.key, dbtype);
+		params.put(MySQLJNDIDataStoreFactory.HOST.key, host);
+		params.put(MySQLJNDIDataStoreFactory.PORT.key, new Integer(port));
+		params.put(MySQLJNDIDataStoreFactory.DATABASE.key, database);
+		params.put(MySQLJNDIDataStoreFactory.SCHEMA.key, "anjuke");
+		params.put(MySQLJNDIDataStoreFactory.USER.key, userName);
+		params.put(MySQLJNDIDataStoreFactory.PASSWD.key, password);
 		try {
 			pgDatastore = DataStoreFinder.getDataStore(params);
 			if (pgDatastore != null) {
@@ -275,9 +336,13 @@ public class GeoToolsUtils {
 	public static boolean shpSave(ShpGeometry geo) throws Exception {
 
 		boolean result = false;
+//		String sql = "insert into geotable (osm_id,code,fclass,name,type,geom) values('" + geo.getOsm_id() + "','"
+//				+ geo.getCode() + "','" + geo.getFclass() + "','" + geo.getName() + "','" + geo.getType() + "',"
+//				+ "st_geomfromewkt('" + geo.getGeom().toString() + "'))";
+
 		String sql = "insert into geotable (osm_id,code,fclass,name,type,geom) values('" + geo.getOsm_id() + "','"
 				+ geo.getCode() + "','" + geo.getFclass() + "','" + geo.getName() + "','" + geo.getType() + "',"
-				+ "st_geomfromewkt('" + geo.getGeom().toString() + "'))";
+				+ "GeometryFromText('" + geo.getGeom().toString() + "'))";
 
 		PreparedStatement pstmt;
 		pstmt = connection.prepareStatement(sql);
@@ -468,15 +533,25 @@ public class GeoToolsUtils {
 	
 	public static void main(String[] args) throws Exception {
 
+//		// 1.利用Provider连接 空间数据库
+//		if (!connDataBase("192.168.1.104", 5432, "postgres", "bluethink", "test")) {
+//			System.out.println("连接postgresql数据库失败，请检查参数！");
+//		}
+
 		// 1.利用Provider连接 空间数据库
-		if (!connDataBase("192.168.1.104", 5432, "postgres", "bluethink", "test")) {
-			System.out.println("连接postgresql数据库失败，请检查参数！");
+		if (!connDataBaseMySql("127.0.0.1", 3306, "root", "ywj123456", "anjuke")) {
+			System.out.println("连接mysql数据库失败，请检查参数！");
 		}
 
-		System.out.println("===============连接postgis空间数据库==============");
-		connPostGis("postgis", "192.168.1.104", 5432, "test", "postgres", "bluethink");
+//		System.out.println("===============连接postgis空间数据库==============");
+//		connPostGis("postgis", "192.168.1.104", 5432, "test", "postgres", "bluethink");
+
+		System.out.println("===============连接mysql空间数据库==============");
+		connMySql("mysql", "127.0.0.1", 3306, "anjuke", "root", "ywj123456");
+
 		
-		System.out.println("===============读取shp文件并存储至postgresql数据库==============");	
+//		System.out.println("===============读取shp文件并存储至postgresql数据库==============");
+		System.out.println("===============读取shp文件并存储至mysql数据库==============");
 		// A.建筑物的shapefile，多边形 MULTIPOLYGON
 		// String path = "E:\\china-latest-free\\gis.osm_buildings_a_free_1.shp";
 
@@ -486,7 +561,8 @@ public class GeoToolsUtils {
 		// C.建筑物的点坐标 以Point为主
 		// String path = "E:\\china-latest-free\\gis.osm_pois_free_1.shp";
 		
-		String path = "E:\\china-latest-free\\gis.osm_buildings_a_free_1.shp";
+//		String path = "E:\\china-latest-free\\gis.osm_buildings_a_free_1.shp";
+		String path = "D:\\project\\Java\\shp\\multipol.shp";
 		readSHP(path);
 		
 		System.out.println("===============读取图层geotable==============");
@@ -495,13 +571,13 @@ public class GeoToolsUtils {
 		System.out.println("===============获取所有图层【所有空间几何信息表】==============");
 		getAllLayers();		
 		
-		System.out.println("===============创建自己的shp文件==============");
-		String MPolygonWKT="MULTIPOLYGON(((116.3824004 39.9032955,116.3824261 39.9034733,116.382512 39.9036313,116.382718 39.9038025,116.3831643 39.903954,116.383602 39.9040198,116.3840827 39.9040001,116.3844003 39.9039211,116.3846921 39.903763,116.3848552 39.9035787,116.3848981 39.9033548,116.3848037 39.9031244,116.3845719 39.9029071,116.3842286 39.9027754,116.3837823 39.9027227,116.3833789 39.9027095,116.383027 39.902749,116.3828038 39.9028346,116.382615 39.90294,116.3824776 39.9030717,116.3824004 39.9032955)))";
-		MultiPolygon multiPolygon = gCreator.createMulPolygonByWKT(MPolygonWKT);
-	    System.out.println(multiPolygon.getGeometryType());		
-		//首先得创建my这个目录
-	    writeSHP("C:/my/multipol.shp",multiPolygon);	
-	    System.out.println("===============打开shp文件==============");	
-		GeoToolsUtils.openShpFile();
+//		System.out.println("===============创建自己的shp文件==============");
+//		String MPolygonWKT="MULTIPOLYGON(((116.3824004 39.9032955,116.3824261 39.9034733,116.382512 39.9036313,116.382718 39.9038025,116.3831643 39.903954,116.383602 39.9040198,116.3840827 39.9040001,116.3844003 39.9039211,116.3846921 39.903763,116.3848552 39.9035787,116.3848981 39.9033548,116.3848037 39.9031244,116.3845719 39.9029071,116.3842286 39.9027754,116.3837823 39.9027227,116.3833789 39.9027095,116.383027 39.902749,116.3828038 39.9028346,116.382615 39.90294,116.3824776 39.9030717,116.3824004 39.9032955)))";
+//		MultiPolygon multiPolygon = gCreator.createMulPolygonByWKT(MPolygonWKT);
+//	    System.out.println(multiPolygon.getGeometryType());
+//		//首先得创建my这个目录
+//	    writeSHP("C:/my/multipol.shp",multiPolygon);
+//	    System.out.println("===============打开shp文件==============");
+//		GeoToolsUtils.openShpFile();
 	}
 }
